@@ -19,7 +19,7 @@ if mode in ("dielectric", "lossy"):
 if mode == "lossy":
     sigma[kc:] = 0.04
 ex, hy = np.zeros(ke), np.zeros(ke)
-E = [ex.copy()]
+E, H = [ex.copy()], [hy.copy()]
 a = sigma * dt / (2 * eps0 * eps)
 ca, cb = (1 - a) / (1 + a), S / (eps * (1 + a))
 
@@ -42,6 +42,41 @@ for n in range(1, nsteps + 1):
         if n >= right: ex[-1] = E[n-right][-2]
     hy[:-1] += S * (ex[:-1] - ex[1:])
     E.append(ex.copy())
+    H.append(hy.copy())
+
+# Save the simulation data for future post-processing.
+E, H = np.asarray(E), np.asarray(H)
+steps = np.arange(nsteps + 1)
+
+folder = Path.cwd() / "outputs"
+folder.mkdir(parents=True, exist_ok=True)
+
+output_data = folder / f"yee_{mode}_fields.npz"
+np.savez_compressed(
+    output_data,
+    E_tilde=E,                       # E normalization; shape: (time, position)
+    H=H,                             # Magnetic field [A/m]
+    z_E=np.arange(ke) * dx,           # Electric-field positions [m]
+    z_H=(np.arange(ke) + 0.5) * dx,   # Magnetic-field positions [m]
+    t_E=(steps - 0.5) * dt,           # Electric-field times [s]
+    t_H=steps * dt,                   # Magnetic-field times [s]
+    eps_r=eps,
+    sigma=sigma,                     # Conductivity [S/m]
+    dx=dx,
+    dt=dt,
+    S=S,
+    c0=c0,
+    eps0=eps0,
+    mode=mode,
+    source_index=source,
+    interface_index=kc,
+    source_frequency=frequency,
+    gaussian_center_step=t0,
+    gaussian_spread_steps=spread,
+    source_type="hard" if mode in ("raw", "abc") else "soft",
+    boundary_type="reflecting" if mode == "raw" else "approximate_delay"
+)
+print(f"Simulation data saved to: {output_data}")
 
 # 4. Animate only E; skip frames without skipping simulation steps.
 fig, ax = plt.subplots(figsize=(8, 4))
